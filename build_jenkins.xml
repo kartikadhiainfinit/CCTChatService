@@ -1,0 +1,199 @@
+<project name="GMSChatWrapper" default="create-war" basedir=".">
+
+	<property name="app.name" value="CCTChatService" />
+
+	<!-- Version -->
+	<property name="version.info" value="0.0.0.0" />
+	
+	<!-- Project settings -->
+	<property name="scc.baseProject" value="https://usv000225/svn/projekte" />
+	<property name="scc.project.name" value="CCTChatService" />
+	<property name="project.source_compatibility_level" value="1.7" />
+	<property name="project.target_compatibility_level" value="1.7" />
+	<property name="project.debug" value="on" />
+	<property name="project.name" value="CCTChatService" />
+	
+	<!-- Local settings -->
+	<property name="web.dir" value="./web" />
+	<property name="project.name" value="${ant.project.name}" />
+	<property name="java.dir" value="./src/java" />
+	<property name="lib.dir" value="../../LibExt" />
+	<property name="doc.dir" value="./doc/${ant.project.name}/doc" />
+	<property name="meta-inf.dir" value="${web.dir}/META-INF" />
+	<property name="bin.dir" value="./build/classes" />
+
+	<property name="target.home" value="${basedir}/build" />
+	<property name="target.dist.home" value="${target.home}/dist" />
+
+
+	<!-- connected projects -->
+	<property name="project.LcaConnector" value="../LocalControlAgentConnector" />
+	<property name="project.ConfigServerConnector" value="../ConfigServerConnector" />
+	<property name="project.MessageServerConnector" value="../MessageServerConnector" />
+
+	<!-- Timestamp -->
+	<tstamp>
+		<format property="TIMESTAMP_DE" pattern="dd.MM.yyyy HH:mm:ss" locale="de,DE" />
+		<format property="BUILD" pattern="yyMMddHHmmss" locale="de,DE" />
+	</tstamp>
+
+	<!-- Class path -->
+	<path id="class.path">
+		<fileset dir="${lib.dir}">
+			<include name="**/**/*.jar" />
+		</fileset>
+		<fileset dir="${project.LcaConnector}/dist">
+			<include name="**/lcaconnector.jar" />
+		</fileset>
+		<fileset dir="${project.ConfigServerConnector}/dist">
+			<include name="**/ConfigServerConnector.jar" />
+		</fileset>
+		<fileset dir="${project.MessageServerConnector}/dist">
+			<include name="**/messageserverconnector.jar" />
+		</fileset>
+	</path>
+
+	<!-- Clean -->
+	<target name="clean">
+		<delete dir="${bin.dir}" includeEmptyDirs="true" />
+		<delete dir="${target.dir}" includeEmptyDirs="true" />
+		<delete dir="${target.home}" includeemptydirs="true" />
+		<delete dir="dist" includeemptydirs="true" />
+	</target>
+
+	<!-- Build -->
+	<target name="build" depends="clean">
+
+		<!-- Compile -->
+		<mkdir dir="${bin.dir}" />
+
+		<ant antfile="${project.LcaConnector}/build.xml" target="server" inheritall="false" />
+		<ant antfile="${project.ConfigServerConnector}/build.xml" target="server" inheritall="false" />
+		<ant antfile="${project.MessageServerConnector}/build.xml" target="server" inheritall="false" />
+
+		<javac srcdir="${java.dir}" destdir="${bin.dir}" verbose="no" optimize="on" deprecation="on" debug="${project.debug}" source="${project.source_compatibility_level}" target="${project.target_compatibility_level}" includeAntRuntime="false" encoding="utf-8">
+			<include name="**/*.java" />
+			<classpath refid="class.path" />
+		</javac>
+
+		<!-- Copy class files into web dir -->
+		<delete dir="${web.dir}/WEB-INF/classes" />
+		<copy todir="${web.dir}/WEB-INF/classes">
+			<fileset dir="${bin.dir}" includes="**/*.*" />
+		</copy>
+
+		<!-- Copy non-java source files into web dir -->
+		<copy todir="${web.dir}/WEB-INF/classes">
+			<fileset dir="${java.dir}" includes="**/*.properties,**/*.xml,**/*.html" />
+		</copy>
+		<attrib file="${meta-inf.dir}/MANIFEST.MF" readonly="false" />
+
+		<!-- Make manifest -->
+		<manifest file="${meta-inf.dir}/MANIFEST.MF">
+			<attribute name="Bundle-Name" value="${project.name}" />
+			<attribute name="Built-By" value="${user.name} (${TIMESTAMP_DE})" />
+			<attribute name="Implementation-Vendor" value="infinIT.cx GmbH" />
+			<attribute name="Build-Number" value="${BUILD}" />
+			<attribute name="Version" value="${version.info}" />
+		</manifest>
+
+	</target>
+
+	<!-- Release build-->
+	<target name="release-build" depends="clean">
+		<!-- Build -->
+		<antcall target="build">
+			<param name="BUILD" value="0" />
+		</antcall>
+	</target>
+
+
+	<target name="create-jar" depends="build" description="Create JAR file for binary distribution">
+		<mkdir dir="${target.dist.home}" />
+		<jar jarfile="${target.dist.home}/${app.name}.jar" basedir="${bin.dir}">
+			<manifest>
+				<attribute name="Built-By" value="infinIT.cx GmbH - ${user.name}" />
+				<attribute name="Built-Date" value="${DSTAMP}" />
+				<attribute name="Version" value="${version.info}" />
+			</manifest>
+		</jar>
+		<copy tofile="dist/${app.name}.jar" file="${target.dist.home}/${app.name}.jar" />
+	</target>
+
+	<!-- WAR -->
+	<target name="prepare-war" depends="create-jar" description="Create working dirs and copy static files to work dir">
+
+		<copy includeemptydirs="true" todir="${target.dist.home}">
+			<fileset dir="${web.dir}" />
+		</copy>
+		<!--copy includeemptydirs="true" todir="${target.dist.home}/WEB-INF/classes">
+		  	    <fileset dir="${src.resources.home}">
+		  	    	<include name="log4j.properties"/>
+		  		</fileset>
+		  	</copy-->
+		    <copy flatten="true" todir="${target.dist.home}/WEB-INF/lib">
+	             <fileset dir="${lib.dir}">
+			<include name="**/**/*.jar" />
+			<exclude name="**/Websocket/*.jar"/>
+		</fileset>
+	        </copy>
+
+		<copy tofile="${target.dist.home}/WEB-INF/lib/messageserverconnector.jar" file="${project.MessageServerConnector}/dist/messageserverconnector.jar" />
+		<copy tofile="${target.dist.home}/WEB-INF/lib/configserverconnector.jar" file="${project.ConfigServerConnector}/dist/ConfigServerConnector.jar" />
+		<copy tofile="${target.dist.home}/WEB-INF/lib/lcaconnector.jar" file="${project.LcaConnector}/dist/lcaconnector.jar" />
+		<!--copy tofile="${target.dist.home}/WEB-INF/lib/${app.name}.jar" file="${target.dist.home}/${app.name}.jar" /-->
+
+	</target>
+
+
+	<target name="create-war" depends="prepare-war" description="Create WAR file for binary distribution">
+		<jar manifest="${target.dist.home}/META-INF/MANIFEST.MF" jarfile="${target.dist.home}/${app.name}.war" basedir="${target.dist.home}" excludes="${app.name}.jar">
+		</jar>
+
+		<mkdir dir="dist" />
+		<copy tofile="dist/${app.name}.war" file="${target.dist.home}/${app.name}.war" />
+	</target>
+
+	<taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask" />
+	<property name="findbugs.home" value="/usr/local/findbugs/" />
+
+	<target name="findbugs">
+		<findbugs home="${findbugs.home}" output="xml" outputFile="findbugs.xml" jvmargs="-Xms512M -Xmx512M ">
+			<sourcePath path="${java.dir}" />
+			<class location="${bin.dir}" />
+		</findbugs>
+	</target>
+
+	<target name="all" depends="create-war, findbugs" />
+	
+	<!-- Release -->
+	<target name="release">
+
+		<!-- Get latest version -->
+		<ant antfile="buildInternal.xml" target="get-latest-version" />
+
+		<!-- Build -->
+		<antcall target="release-build" />
+
+		<!-- Input check-in comment -->
+		<property name="comment" value="V${version.info}" />
+
+		<ant antfile="buildInternal.xml" target="label">
+			<property name="BUILD" value="0" />
+		</ant>
+
+		<!-- Undeploy -->
+		<antcall target="undeploy" />
+
+		<!-- Deploy -->
+		<antcall target="deploy" />
+
+	</target>
+
+	<!-- Javadoc -->
+	<target name="javadoc">
+		<javadoc access="public" author="true" classpathref="class.path" destdir="${doc.dir}" nodeprecated="false" nodeprecatedlist="false" noindex="false" nonavbar="false" notree="false" packagenames="*" source="1.5" sourcepath="${java.dir}" splitindex="true" use="true" version="true">
+		</javadoc>
+	</target>
+
+</project>
